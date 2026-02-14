@@ -1,0 +1,191 @@
+# name: test/sql/polyglot.test
+# description: test polyglot extension
+# group: [polyglot]
+
+require polyglot
+
+# ============== polyglot_transpile: basic ==============
+
+# Identity transpile
+query I
+SELECT polyglot_transpile('SELECT 1', 'generic');
+----
+SELECT 1
+
+# Error on invalid dialect
+statement error
+SELECT polyglot_transpile('SELECT 1', 'not_a_dialect');
+----
+Invalid Input Error
+
+# ============== polyglot_transpile: Snowflake -> DuckDB ==============
+
+# DATEDIFF
+query I
+SELECT polyglot_transpile('SELECT DATEDIFF(''day'', ''2020-01-01'', ''2025-10-12'')', 'snowflake');
+----
+SELECT DATE_DIFF('DAY', CAST('2020-01-01' AS DATE), CAST('2025-10-12' AS DATE))
+
+# STRTOK_TO_ARRAY -> STR_SPLIT
+query I
+SELECT polyglot_transpile('STRTOK_TO_ARRAY(x, ''a'')', 'snowflake');
+----
+STR_SPLIT(x, 'a')
+
+# TIMESTAMPNTZ -> TIMESTAMP
+query I
+SELECT polyglot_transpile('SELECT CAST(''2020-01-01 12:05:01'' AS TIMESTAMPNTZ)', 'snowflake');
+----
+SELECT CAST('2020-01-01 12:05:01' AS TIMESTAMP)
+
+# CONVERT_TIMEZONE
+query I
+SELECT polyglot_transpile('CONVERT_TIMEZONE(''America/New_York'', CAST(start AS TIMESTAMPTZ))', 'snowflake');
+----
+CAST(CAST(start AS TIMESTAMPTZ) AS TIMESTAMP) AT TIME ZONE 'America/New_York'
+
+# Semi-structured data access
+query I
+SELECT polyglot_transpile('SELECT data:value = 1', 'snowflake');
+----
+SELECT (data -> '$.value') = 1
+
+# SAMPLE -> TABLESAMPLE
+query I
+SELECT polyglot_transpile('SELECT * FROM example SAMPLE (3 ROWS) SEED (82)', 'snowflake');
+----
+SELECT * FROM example TABLESAMPLE (3 ROWS) REPEATABLE (82)
+
+# TIMEADD
+query I
+SELECT polyglot_transpile('SELECT TIMEADD(HOUR, 2, TO_TIME(''09:05:03''))', 'snowflake');
+----
+SELECT CAST('09:05:03' AS TIME) + INTERVAL 2 HOUR
+
+# ============== polyglot_transpile: BigQuery -> DuckDB ==============
+
+# STRUCT
+query I
+SELECT polyglot_transpile('SELECT STRUCT(column1 AS bla, column2 AS foo) AS data FROM t', 'bigquery');
+----
+SELECT {'bla': column1, 'foo': column2} AS data FROM t
+
+# DATE_ADD
+query I
+SELECT polyglot_transpile('SELECT DATE_ADD(CAST(''2020-05-06'' AS DATE), INTERVAL 5 DAY)', 'bigquery');
+----
+SELECT CAST('2020-05-06' AS DATE) + INTERVAL '5' DAY
+
+# DATE_SUB
+query I
+SELECT polyglot_transpile('SELECT DATE_SUB(CAST(''2020-05-06'' AS DATE), INTERVAL 5 DAY)', 'bigquery');
+----
+SELECT CAST('2020-05-06' AS DATE) - INTERVAL '5' DAY
+
+# ISNAN
+query I
+SELECT polyglot_transpile('ISNAN(x)', 'bigquery');
+----
+ISNAN(x)
+
+# DATE from parts
+query I
+SELECT polyglot_transpile('SELECT DATE(2016, 12, 25)', 'bigquery');
+----
+SELECT MAKE_DATE(2016, 12, 25)
+
+# XOR
+query I
+SELECT polyglot_transpile('a ^ b', 'bigquery');
+----
+XOR(a, b)
+
+# ============== polyglot_transpile: Spark -> DuckDB ==============
+
+# EXPLODE -> UNNEST
+query I
+SELECT polyglot_transpile('EXPLODE(x)', 'spark');
+----
+UNNEST(x)
+
+# ARRAY literal -> LIST_VALUE
+query I
+SELECT polyglot_transpile('ARRAY(0, 1, 2)', 'spark');
+----
+LIST_VALUE(0, 1, 2)
+
+# Double literal suffix
+query I
+SELECT polyglot_transpile('1d', 'spark');
+----
+CAST(1 AS DOUBLE)
+
+# Short suffix for SMALLINT
+query I
+SELECT polyglot_transpile('POW(2S, 3)', 'spark');
+----
+POWER(CAST(2 AS SMALLINT), 3)
+
+# ============== polyglot_transpile: Presto -> DuckDB ==============
+
+# TO_UNIXTIME -> EPOCH
+query I
+SELECT polyglot_transpile('TO_UNIXTIME(x)', 'presto');
+----
+EPOCH(x)
+
+# TO_UTF8 -> ENCODE
+query I
+SELECT polyglot_transpile('TO_UTF8(x)', 'presto');
+----
+ENCODE(x)
+
+# FROM_UTF8 -> DECODE
+query I
+SELECT polyglot_transpile('FROM_UTF8(x)', 'presto');
+----
+DECODE(x)
+
+# ============== polyglot_transpile: PostgreSQL -> DuckDB ==============
+
+# XOR operator
+query I
+SELECT polyglot_transpile('a # b', 'postgres');
+----
+XOR(a, b)
+
+# ============== polyglot_transpile: MySQL -> DuckDB ==============
+
+# DATE arithmetic with negative interval
+query I
+SELECT polyglot_transpile('SELECT DATE ''2020-01-01'' + INTERVAL -1 DAY', 'mysql');
+----
+SELECT CAST('2020-01-01' AS DATE) + INTERVAL -1 DAY
+
+# ============== polyglot_dialects ==============
+
+# Returns correct count
+query I
+SELECT count(*) FROM polyglot_dialects();
+----
+33
+
+# Contains known dialects
+query I
+SELECT dialect_name FROM polyglot_dialects() WHERE dialect_name = 'postgresql';
+----
+postgresql
+
+# ============== polyglot_query ==============
+
+# Simple query execution
+query I
+SELECT * FROM polyglot_query('SELECT 1 AS a', 'generic');
+----
+1
+
+# Multi-column query
+query II
+SELECT * FROM polyglot_query('SELECT 1 AS a, 2 AS b', 'generic');
+----
+1	2

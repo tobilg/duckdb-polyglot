@@ -1,116 +1,160 @@
-# DuckDB Rust extension template
-This is an **experimental** template for Rust based extensions based on the C Extension API of DuckDB. The goal is to
-turn this eventually into a stable basis for pure-Rust DuckDB extensions that can be submitted to the Community extensions
-repository
+# DuckDB Polyglot Extension
 
-Features:
-- No DuckDB build required
-- No C++ or C code required
-- CI/CD chain preconfigured
-- (Coming soon) Works with community extensions
+A DuckDB extension that provides SQL transpilation capabilities, powered by the [polyglot-sql](https://crates.io/crates/polyglot-sql) crate. It can transpile SQL from 33 different dialects into DuckDB SQL, and optionally execute the transpiled query directly.
 
-## Cloning
+## Installation
+You can install this extension from the community extension repo like this:
 
-Clone the repo with submodules
+```sql
+INSTALL polyglot FROM community;
+LOAD polyglot;
+```
+
+## Functions
+
+### `polyglot_transpile(sql VARCHAR, from_dialect VARCHAR) -> VARCHAR`
+
+Transpiles a SQL query from the given dialect to DuckDB SQL.
+
+```sql
+SELECT polyglot_transpile('SELECT NOW()', 'postgresql');
+-- Returns the DuckDB-compatible equivalent
+```
+
+If the input contains multiple statements, they are joined with `;\n` in the result.
+
+### `polyglot_dialects() -> TABLE(dialect_name VARCHAR)`
+
+Returns a table of all 33 supported dialect names.
+
+```sql
+SELECT * FROM polyglot_dialects();
+```
+
+```
+┌──────────────┐
+│ dialect_name │
+│   varchar    │
+├──────────────┤
+│ generic      │
+│ postgresql   │
+│ mysql        │
+│ bigquery     │
+│ snowflake    │
+│ duckdb       │
+│ sqlite       │
+│ hive         │
+│ spark        │
+│ trino        │
+│ presto       │
+│ redshift     │
+│ tsql         │
+│ oracle       │
+│ clickhouse   │
+│ databricks   │
+│ athena       │
+│ teradata     │
+│ doris        │
+│ starrocks    │
+│ materialize  │
+│ risingwave   │
+│ singlestore  │
+│ cockroachdb  │
+│ tidb         │
+│ druid        │
+│ solr         │
+│ tableau      │
+│ dune         │
+│ fabric       │
+│ drill        │
+│ dremio       │
+│ exasol       │
+├──────────────┤
+│   33 rows    │
+└──────────────┘
+```
+
+Some dialects also accept aliases (e.g. `postgres` for `postgresql`, `mssql` or `sqlserver` for `tsql`, `memsql` for `singlestore`).
+
+### `polyglot_query(sql VARCHAR, from_dialect VARCHAR) -> TABLE`
+
+Transpiles a SQL query from the given dialect to DuckDB SQL, then executes it and returns the results. The output schema is dynamic, matching the columns of the executed query.
+
+```sql
+SELECT * FROM polyglot_query('SELECT 1 AS a, 2 AS b', 'postgresql');
+```
+
+```
+┌───┬───┐
+│ a │ b │
+├───┼───┤
+│ 1 │ 2 │
+└───┴───┘
+```
+
+## Building
+
+### Dependencies
+
+- [Rust toolchain](https://rustup.rs/)
+- Python3 + Python3-venv
+- [Make](https://www.gnu.org/software/make)
+- Git
+
+### Build steps
+
+Clone the repo with submodules:
 
 ```shell
 git clone --recurse-submodules <repo>
 ```
 
-## Dependencies
-In principle, these extensions can be compiled with the Rust toolchain alone. However, this template relies on some additional
-tooling to make life a little easier and to be able to share CI/CD infrastructure with extension templates for other languages:
+Configure (sets up Python venv with DuckDB test runner):
 
-- Python3
-- Python3-venv
-- [Make](https://www.gnu.org/software/make)
-- Git
-
-Installing these dependencies will vary per platform:
-- For Linux, these come generally pre-installed or are available through the distro-specific package manager.
-- For MacOS, [homebrew](https://formulae.brew.sh/).
-- For Windows, [chocolatey](https://community.chocolatey.org/).
-
-## Building
-After installing the dependencies, building is a two-step process. Firstly run:
 ```shell
 make configure
 ```
-This will ensure a Python venv is set up with DuckDB and DuckDB's test runner installed. Additionally, depending on configuration,
-DuckDB will be used to determine the correct platform for which you are compiling.
 
-Then, to build the extension run:
+Build debug:
+
 ```shell
 make debug
 ```
-This delegates the build process to cargo, which will produce a shared library in `target/debug/<shared_lib_name>`. After this step,
-a script is run to transform the shared library into a loadable extension by appending a binary footer. The resulting extension is written
-to the `build/debug` directory.
 
-To create optimized release binaries, simply run `make release` instead.
+Build release:
 
-### Running the extension
-To run the extension code, start `duckdb` with `-unsigned` flag. This will allow you to load the local extension file.
+```shell
+make release
+```
 
-```sh
+## Running
+
+Start DuckDB with the `-unsigned` flag (required for locally built extensions):
+
+```shell
 duckdb -unsigned
 ```
 
-After loading the extension by the file path, you can use the functions provided by the extension (in this case, `rusty_quack()`).
+Then load the extension:
 
 ```sql
-LOAD './build/debug/extension/rusty_quack/rusty_quack.duckdb_extension';
-SELECT * FROM rusty_quack('Jane');
-```
+LOAD 'build/debug/polyglot.duckdb_extension';
 
-```
-┌─────────────────────┐
-│       column0       │
-│       varchar       │
-├─────────────────────┤
-│ Rusty Quack Jane 🐥 │
-└─────────────────────┘
+SELECT polyglot_transpile('SELECT NOW()', 'postgresql');
+SELECT * FROM polyglot_dialects();
+SELECT * FROM polyglot_query('SELECT 1 AS a, 2 AS b', 'generic');
 ```
 
 ## Testing
-This extension uses the DuckDB Python client for testing. This should be automatically installed in the `make configure` step.
-The tests themselves are written in the SQLLogicTest format, just like most of DuckDB's tests. A sample test can be found in
-`test/sql/<extension_name>.test`. To run the tests using the *debug* build:
+
+Tests are written in SQLLogicTest format in `test/sql/polyglot.test`.
 
 ```shell
 make test_debug
 ```
 
-or for the *release* build:
+Or for release builds:
+
 ```shell
 make test_release
 ```
-
-### Version switching
-Testing with different DuckDB versions is really simple:
-
-First, run
-```
-make clean_all
-```
-to ensure the previous `make configure` step is deleted.
-
-Then, run
-```
-DUCKDB_TEST_VERSION=v1.3.2 make configure
-```
-to select a different duckdb version to test with
-
-Finally, build and test with
-```
-make debug
-make test_debug
-```
-
-### Known issues
-This is a bit of a footgun, but the extensions produced by this template may (or may not) be broken on windows on python3.11
-with the following error on extension load:
-```shell
-IO Error: Extension '<name>.duckdb_extension' could not be loaded: The specified module could not be found
-```
-This was resolved by using python 3.12

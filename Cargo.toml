@@ -1,6 +1,6 @@
 [package]
-name = "rusty_quack"
-version = "0.1.0"
+name = "polyglot"
+version = "0.1.1"
 edition = "2021"
 
 [lib]
@@ -15,10 +15,12 @@ strip = true
 # src/wasm_lib.rs forwards to src/lib.rs so that we can change from cdylib
 # (that is needed while compiling natively) to staticlib (needed since the
 # actual linking will be done via emcc
-name = "rusty_quack"
+name = "polyglot"
 path = "src/wasm_lib.rs"
 crate-type = ["staticlib"]
 
 [dependencies]
-duckdb = { version = "=1.4.4", features = ["loadable-extension"] }
+duckdb = { version = "=1.4.4", features = ["bundled", "loadable-extension", "vscalar", "vscalar-arrow"] }
 libduckdb-sys = "=1.4.4"
+polyglot-sql = "=0.1.1"
+arrow = { version = "56", default-features = false }
