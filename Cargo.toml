@@ -1,6 +1,6 @@
 [package]
 name = "polyglot"
-version = "0.1.1"
+version = "0.1.4"
 edition = "2021"
 
 [lib]
@@ -22,5 +22,5 @@ crate-type = ["staticlib"]
 [dependencies]
 duckdb = { version = "=1.4.4", features = ["bundled", "loadable-extension", "vscalar", "vscalar-arrow"] }
 libduckdb-sys = "=1.4.4"
-polyglot-sql = "=0.1.1"
+polyglot-sql = "=0.1.4"
 arrow = { version = "56", default-features = false }
