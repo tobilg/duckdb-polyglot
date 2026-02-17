@@ -1,10 +1,10 @@
 use duckdb::{
     core::{DataChunkHandle, Inserter, LogicalTypeHandle, LogicalTypeId},
+    vscalar::{ArrowFunctionSignature, VArrowScalar},
     vtab::{
         record_batch_to_duckdb_data_chunk, to_duckdb_logical_type, BindInfo, InitInfo,
         TableFunctionInfo, VTab,
     },
-    vscalar::{ArrowFunctionSignature, VArrowScalar},
     Connection,
 };
 
@@ -41,10 +41,7 @@ struct TranspileScalar;
 impl VArrowScalar for TranspileScalar {
     type State = ();
 
-    fn invoke(
-        _: &Self::State,
-        input: RecordBatch,
-    ) -> Result<Arc<dyn Array>, Box<dyn Error>> {
+    fn invoke(_: &Self::State, input: RecordBatch) -> Result<Arc<dyn Array>, Box<dyn Error>> {
         let sql_col = input
             .column(0)
             .as_any()
@@ -59,22 +56,108 @@ impl VArrowScalar for TranspileScalar {
         let results: Vec<Option<String>> = sql_col
             .iter()
             .zip(dialect_col.iter())
-            .map(
-                |(sql, dialect)| -> Result<Option<String>, Box<dyn Error>> {
-                    match (sql, dialect) {
-                        (Some(s), Some(d)) => {
-                            let from_dialect: DialectType = d.parse()?;
-                            let result = polyglot_sql::transpile(
-                                s,
-                                from_dialect,
-                                DialectType::DuckDB,
-                            )?;
-                            Ok(Some(result.join(";\n")))
-                        }
-                        _ => Ok(None),
+            .map(|(sql, dialect)| -> Result<Option<String>, Box<dyn Error>> {
+                match (sql, dialect) {
+                    (Some(s), Some(d)) => {
+                        let from_dialect: DialectType = d.parse()?;
+                        let result = polyglot_sql::transpile(s, from_dialect, DialectType::DuckDB)?;
+                        Ok(Some(result.join(";\n")))
                     }
-                },
-            )
+                    _ => Ok(None),
+                }
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+
+        Ok(Arc::new(StringArray::from(results)))
+    }
+
+    fn signatures() -> Vec<ArrowFunctionSignature> {
+        vec![ArrowFunctionSignature::exact(
+            vec![DataType::Utf8, DataType::Utf8],
+            DataType::Utf8,
+        )]
+    }
+}
+
+// ============== ParseScalar ==============
+
+struct ParseScalar;
+
+impl VArrowScalar for ParseScalar {
+    type State = ();
+
+    fn invoke(_: &Self::State, input: RecordBatch) -> Result<Arc<dyn Array>, Box<dyn Error>> {
+        let sql_col = input
+            .column(0)
+            .as_any()
+            .downcast_ref::<StringArray>()
+            .unwrap();
+        let dialect_col = input
+            .column(1)
+            .as_any()
+            .downcast_ref::<StringArray>()
+            .unwrap();
+
+        let results: Vec<Option<String>> = sql_col
+            .iter()
+            .zip(dialect_col.iter())
+            .map(|(sql, dialect)| -> Result<Option<String>, Box<dyn Error>> {
+                match (sql, dialect) {
+                    (Some(s), Some(d)) => {
+                        let parsed_dialect: DialectType = d.parse()?;
+                        let ast = polyglot_sql::parse(s, parsed_dialect)?;
+                        let ast_json = serde_json::to_string(&ast)?;
+                        Ok(Some(ast_json))
+                    }
+                    _ => Ok(None),
+                }
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+
+        Ok(Arc::new(StringArray::from(results)))
+    }
+
+    fn signatures() -> Vec<ArrowFunctionSignature> {
+        vec![ArrowFunctionSignature::exact(
+            vec![DataType::Utf8, DataType::Utf8],
+            DataType::Utf8,
+        )]
+    }
+}
+
+// ============== ValidateScalar ==============
+
+struct ValidateScalar;
+
+impl VArrowScalar for ValidateScalar {
+    type State = ();
+
+    fn invoke(_: &Self::State, input: RecordBatch) -> Result<Arc<dyn Array>, Box<dyn Error>> {
+        let sql_col = input
+            .column(0)
+            .as_any()
+            .downcast_ref::<StringArray>()
+            .unwrap();
+        let dialect_col = input
+            .column(1)
+            .as_any()
+            .downcast_ref::<StringArray>()
+            .unwrap();
+
+        let results: Vec<Option<String>> = sql_col
+            .iter()
+            .zip(dialect_col.iter())
+            .map(|(sql, dialect)| -> Result<Option<String>, Box<dyn Error>> {
+                match (sql, dialect) {
+                    (Some(s), Some(d)) => {
+                        let parsed_dialect: DialectType = d.parse()?;
+                        let validation = polyglot_sql::validate(s, parsed_dialect);
+                        let validation_json = serde_json::to_string(&validation)?;
+                        Ok(Some(validation_json))
+                    }
+                    _ => Ok(None),
+                }
+            })
             .collect::<Result<Vec<_>, _>>()?;
 
         Ok(Arc::new(StringArray::from(results)))
@@ -204,8 +287,7 @@ impl VTab for QueryVTab {
         let dialect_str = bind.get_parameter(1).to_string();
 
         let from_dialect: DialectType = dialect_str.parse()?;
-        let transpiled =
-            polyglot_sql::transpile(&sql, from_dialect, DialectType::DuckDB)?;
+        let transpiled = polyglot_sql::transpile(&sql, from_dialect, DialectType::DuckDB)?;
         let duckdb_sql = transpiled.join("; ");
 
         let conn_guard = shared.0.lock().unwrap();
@@ -260,11 +342,10 @@ impl VTab for QueryVTab {
 
 // ============== Entrypoint ==============
 
-fn extension_entrypoint(
-    con: Connection,
-    shared_conn: SharedConn,
-) -> Result<(), Box<dyn Error>> {
+fn extension_entrypoint(con: Connection, shared_conn: SharedConn) -> Result<(), Box<dyn Error>> {
     con.register_scalar_function::<TranspileScalar>("polyglot_transpile")?;
+    con.register_scalar_function::<ParseScalar>("polyglot_parse")?;
+    con.register_scalar_function::<ValidateScalar>("polyglot_validate")?;
     con.register_table_function::<DialectsVTab>("polyglot_dialects")?;
     con.register_table_function_with_extra_info::<QueryVTab, SharedConn>(
         "polyglot_query",
@@ -308,15 +389,13 @@ unsafe fn polyglot_init_c_api_internal(
     access: *const libduckdb_sys::duckdb_extension_access,
 ) -> std::result::Result<bool, Box<dyn std::error::Error>> {
     let have_api_struct =
-        libduckdb_sys::duckdb_rs_extension_api_init(info, access, "v1.4.4")
-            .unwrap();
+        libduckdb_sys::duckdb_rs_extension_api_init(info, access, "v1.4.4").unwrap();
 
     if !have_api_struct {
         return Ok(false);
     }
 
-    let db: libduckdb_sys::duckdb_database =
-        *(*access).get_database.unwrap()(info);
+    let db: libduckdb_sys::duckdb_database = *(*access).get_database.unwrap()(info);
 
     // Create the main connection for registering functions
     let connection = Connection::open_from_raw(db.cast())?;

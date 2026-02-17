@@ -1266,6 +1266,7 @@ dependencies = [
  "duckdb",
  "libduckdb-sys",
  "polyglot-sql",
+ "serde_json",
 ]
 
 [[package]]

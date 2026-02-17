@@ -176,6 +176,34 @@ SELECT dialect_name FROM polyglot_dialects() WHERE dialect_name = 'postgresql';
 ----
 postgresql
 
+# ============== polyglot_parse ==============
+
+# Returns JSON AST and includes parsed table name
+query I
+SELECT json_extract_string(polyglot_parse('SELECT a FROM t', 'generic'), '$[0].select.from.expressions[0].table.name.name');
+----
+t
+
+# Parse fails for invalid SQL
+statement error
+SELECT polyglot_parse('SELECT * FORM users', 'generic');
+----
+Invalid Input Error
+
+# ============== polyglot_validate ==============
+
+# Valid query has valid=true
+query I
+SELECT json_extract_string(polyglot_validate('SELECT * FROM users', 'generic'), '$.valid');
+----
+true
+
+# Invalid query reports at least one error and location
+query I
+SELECT CASE WHEN json_extract(polyglot_validate('SELECT ''abc', 'generic'), '$.errors[0].line') IS NULL THEN 0 ELSE 1 END;
+----
+1
+
 # ============== polyglot_query ==============
 
 # Simple query execution

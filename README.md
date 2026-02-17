@@ -23,6 +23,41 @@ SELECT polyglot_transpile('SELECT NOW()', 'postgresql');
 
 If the input contains multiple statements, they are joined with `;\n` in the result.
 
+### `polyglot_parse(sql VARCHAR, from_dialect VARCHAR) -> VARCHAR`
+
+Parses SQL and returns the AST serialized as a JSON string.
+
+```sql
+SELECT polyglot_parse(
+  'SELECT a, b FROM t WHERE x > 1',
+  'generic'
+);
+-- Returns JSON array of parsed statements
+```
+
+You can use DuckDB JSON functions to inspect the AST:
+
+```sql
+SELECT json_extract_string(
+  polyglot_parse('SELECT a FROM t', 'generic'),
+  '$[0].select.from.expressions[0].table.name.name'
+);
+-- t
+```
+
+### `polyglot_validate(sql VARCHAR, from_dialect VARCHAR) -> VARCHAR`
+
+Validates SQL and returns a JSON string with fields:
+
+- `valid` (boolean)
+- `errors` (array of validation issues with message/code/severity and optional line/column)
+
+```sql
+SELECT polyglot_validate('SELECT * FORM users', 'generic');
+-- Returns JSON like:
+-- {"valid":false,"errors":[{"message":"...","line":1,"column":10,"severity":"error","code":"E001"}]}
+```
+
 ### `polyglot_dialects() -> TABLE(dialect_name VARCHAR)`
 
 Returns a table of all 33 supported dialect names.
