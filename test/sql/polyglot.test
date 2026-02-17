@@ -162,13 +162,39 @@ SELECT polyglot_transpile('SELECT DATE ''2020-01-01'' + INTERVAL -1 DAY', 'mysql
 ----
 SELECT CAST('2020-01-01' AS DATE) + INTERVAL -1 DAY
 
+# ============== polyglot_transpile: 3-arg (to_dialect) ==============
+
+# Explicit 'duckdb' as third arg matches 2-arg behavior
+query I
+SELECT polyglot_transpile('SELECT NOW()', 'postgresql', 'duckdb');
+----
+SELECT CURRENT_TIMESTAMP
+
+# Cross-dialect transpilation: PostgreSQL -> Snowflake
+query I
+SELECT polyglot_transpile('SELECT CAST(x AS DOUBLE)', 'postgresql', 'snowflake');
+----
+SELECT CAST(x AS DOUBLE)
+
+# Cross-dialect transpilation: Snowflake -> PostgreSQL (different output than -> DuckDB)
+query I
+SELECT polyglot_transpile('SELECT DATEDIFF(''day'', ''2020-01-01'', ''2025-10-12'')', 'snowflake', 'postgresql');
+----
+SELECT CAST(EXTRACT(epoch FROM CAST('2025-10-12' AS TIMESTAMP) - CAST('2020-01-01' AS TIMESTAMP)) / 86400 AS BIGINT)
+
+# Invalid to_dialect returns error
+statement error
+SELECT polyglot_transpile('SELECT 1', 'generic', 'not_a_dialect');
+----
+Invalid Input Error
+
 # ============== polyglot_dialects ==============
 
 # Returns correct count
 query I
 SELECT count(*) FROM polyglot_dialects();
 ----
-33
+34
 
 # Contains known dialects
 query I
@@ -189,3 +215,87 @@ query II
 SELECT * FROM polyglot_query('SELECT 1 AS a, 2 AS b', 'generic');
 ----
 1	2
+
+# ============== polyglot_validate ==============
+
+# Valid SQL
+query I
+SELECT (polyglot_validate('SELECT 1', 'generic')).valid;
+----
+true
+
+# Valid SQL has empty message
+query I
+SELECT (polyglot_validate('SELECT 1', 'generic')).message;
+----
+(empty)
+
+# Invalid SQL
+query I
+SELECT (polyglot_validate('SLECT 1', 'generic')).valid;
+----
+false
+
+# Invalid SQL has error message
+query I
+SELECT (polyglot_validate('SLECT 1', 'generic')).message;
+----
+Invalid expression / Unexpected token
+
+# Error on invalid dialect
+statement error
+SELECT polyglot_validate('SELECT 1', 'not_a_dialect');
+----
+Invalid Input Error
+
+# ============== polyglot_parse ==============
+
+# Parse returns valid JSON
+query I
+SELECT json_valid(polyglot_parse('SELECT 1', 'generic'));
+----
+true
+
+# Parse contains expected structure
+query I
+SELECT polyglot_parse('SELECT 1', 'generic')::JSON->0->'select'->'expressions'->0->'literal'->'value';
+----
+"1"
+
+# Error on invalid dialect
+statement error
+SELECT polyglot_parse('SELECT 1', 'not_a_dialect');
+----
+Invalid Input Error
+
+# ============== polyglot_optimize ==============
+
+# Simple query round-trips
+query I
+SELECT polyglot_optimize('SELECT a FROM t WHERE b = 1', 'generic');
+----
+SELECT a FROM t WHERE b = 1
+
+# Error on invalid dialect
+statement error
+SELECT polyglot_optimize('SELECT 1', 'not_a_dialect');
+----
+Invalid Input Error
+
+# ============== polyglot_lineage ==============
+
+# Simple column lineage
+query II
+SELECT * FROM polyglot_lineage('SELECT a FROM t', 'generic', 'a');
+----
+a	(empty)
+t.a	(empty)
+
+# ============== polyglot_diff ==============
+
+# Detect column rename
+query II
+SELECT * FROM polyglot_diff('SELECT a FROM t', 'SELECT b FROM t', 'generic');
+----
+remove	a
+insert	b

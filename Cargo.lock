@@ -1260,19 +1260,20 @@ checksum = "7edddbd0b52d732b21ad9a5fab5c704c14cd949e5e9a1ec5929a24fded1b904c"
 
 [[package]]
 name = "polyglot"
-version = "0.1.1"
+version = "0.1.4"
 dependencies = [
  "arrow",
  "duckdb",
  "libduckdb-sys",
  "polyglot-sql",
+ "serde_json",
 ]
 
 [[package]]
 name = "polyglot-sql"
-version = "0.1.1"
+version = "0.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d6fbb0b8b29303bc1f91332a48d27e3f823552d5de432619676d195f99222b68"
+checksum = "5bccd5cbca75edb3852dad81a34d9fa14c3abb2725d3cbc5dcb2d9e8250e4801"
 dependencies = [
  "serde",
  "serde_json",

@@ -24,3 +24,4 @@ duckdb = { version = "=1.4.4", features = ["bundled", "loadable-extension", "vsc
 libduckdb-sys = "=1.4.4"
 polyglot-sql = "=0.1.4"
 arrow = { version = "56", default-features = false }
+serde_json = "1"
