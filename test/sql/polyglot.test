@@ -186,7 +186,7 @@ t
 
 # Parse fails for invalid SQL
 statement error
-SELECT polyglot_parse('SELECT * FORM users', 'generic');
+SELECT polyglot_parse('SELECT (1', 'generic');
 ----
 Invalid Input Error
 
