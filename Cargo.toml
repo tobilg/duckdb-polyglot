@@ -25,3 +25,4 @@ libduckdb-sys = "1.10500.0"
 polyglot-sql = "0.1.13"
 arrow = { version = "57", default-features = false }
 serde_json = "1"
+comfy-table = ">=7, <7.2"

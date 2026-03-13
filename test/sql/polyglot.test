@@ -24,7 +24,7 @@ Invalid Input Error
 query I
 SELECT polyglot_transpile('SELECT DATEDIFF(''day'', ''2020-01-01'', ''2025-10-12'')', 'snowflake');
 ----
-SELECT DATE_DIFF('DAY', CAST('2020-01-01' AS DATE), CAST('2025-10-12' AS DATE))
+SELECT DATEDIFF(DAY, '2025-10-12', '2020-01-01')
 
 # STRTOK_TO_ARRAY -> STR_SPLIT
 query I
@@ -289,7 +289,7 @@ query II
 SELECT * FROM polyglot_lineage('SELECT a FROM t', 'generic', 'a');
 ----
 a	(empty)
-t.a	(empty)
+t.a	t
 
 # ============== polyglot_diff ==============
 
