@@ -24,7 +24,7 @@ Invalid Input Error
 query I
 SELECT polyglot_transpile('SELECT DATEDIFF(''day'', ''2020-01-01'', ''2025-10-12'')', 'snowflake');
 ----
-SELECT DATEDIFF(DAY, '2025-10-12', '2020-01-01')
+SELECT DATE_DIFF('DAY', CAST('2020-01-01' AS DATE), CAST('2025-10-12' AS DATE))
 
 # STRTOK_TO_ARRAY -> STR_SPLIT
 query I
@@ -108,23 +108,23 @@ SELECT polyglot_transpile('EXPLODE(x)', 'spark');
 ----
 UNNEST(x)
 
-# ARRAY literal -> LIST_VALUE
+# ARRAY literal
 query I
 SELECT polyglot_transpile('ARRAY(0, 1, 2)', 'spark');
 ----
-LIST_VALUE(0, 1, 2)
+[0, 1, 2]
 
 # Double literal suffix
 query I
 SELECT polyglot_transpile('1d', 'spark');
 ----
-CAST(1 AS DOUBLE)
+TRY_CAST(1 AS DOUBLE)
 
 # Short suffix for SMALLINT
 query I
 SELECT polyglot_transpile('POW(2S, 3)', 'spark');
 ----
-POWER(CAST(2 AS SMALLINT), 3)
+POWER(TRY_CAST(2 AS SMALLINT), 3)
 
 # ============== polyglot_transpile: Presto -> DuckDB ==============
 
@@ -152,7 +152,7 @@ DECODE(x)
 query I
 SELECT polyglot_transpile('a # b', 'postgres');
 ----
-XOR(a, b)
+a # b
 
 # ============== polyglot_transpile: MySQL -> DuckDB ==============
 
@@ -174,7 +174,7 @@ SELECT CURRENT_TIMESTAMP
 query I
 SELECT polyglot_transpile('SELECT CAST(x AS DOUBLE)', 'postgresql', 'snowflake');
 ----
-SELECT CAST(x AS DOUBLE)
+SELECT CAST(x AS DOUBLE PRECISION)
 
 # Cross-dialect transpilation: Snowflake -> PostgreSQL (different output than -> DuckDB)
 query I

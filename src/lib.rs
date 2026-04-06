@@ -751,7 +751,7 @@ unsafe fn polyglot_init_c_api_internal(
     access: *const libduckdb_sys::duckdb_extension_access,
 ) -> std::result::Result<bool, Box<dyn std::error::Error>> {
     let have_api_struct =
-        libduckdb_sys::duckdb_rs_extension_api_init(info, access, "v1.5.0")
+        libduckdb_sys::duckdb_rs_extension_api_init(info, access, "v1.5.1")
             .unwrap();
 
     if !have_api_struct {
