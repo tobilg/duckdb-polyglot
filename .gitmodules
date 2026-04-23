@@ -1,4 +1,4 @@
 [submodule "extension-ci-tools"]
 	path = extension-ci-tools
 	url = https://github.com/duckdb/extension-ci-tools
-	branch = v1.5.1
+	branch = v1.5.2

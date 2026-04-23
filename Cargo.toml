@@ -1,6 +1,6 @@
 [package]
 name = "polyglot"
-version = "0.3.0"
+version = "0.3.2"
 edition = "2021"
 
 [lib]
@@ -20,9 +20,9 @@ path = "src/wasm_lib.rs"
 crate-type = ["staticlib"]
 
 [dependencies]
-duckdb = { version = "1.10501.0", features = ["bundled", "loadable-extension", "vscalar", "vscalar-arrow"] }
-libduckdb-sys = "1.10501.0"
-polyglot-sql = "0.3.0"
+duckdb = { version = "1.10502.0", features = ["bundled", "loadable-extension", "vscalar", "vscalar-arrow"] }
+libduckdb-sys = "1.10502.0"
+polyglot-sql = "0.3.2"
 arrow = { version = "58", default-features = false }
 serde_json = "1"
 comfy-table = ">=7, <7.2"
