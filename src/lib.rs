@@ -719,11 +719,11 @@ fn extension_entrypoint(
 /// # Safety
 ///
 /// Entrypoint called by DuckDB
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn polyglot_init_c_api(
     info: libduckdb_sys::duckdb_extension_info,
     access: *const libduckdb_sys::duckdb_extension_access,
-) -> bool {
+) -> bool { unsafe {
     let init_result = polyglot_init_c_api_internal(info, access);
 
     if let Err(x) = init_result {
@@ -741,7 +741,7 @@ pub unsafe extern "C" fn polyglot_init_c_api(
     }
 
     init_result.unwrap()
-}
+}}
 
 /// # Safety
 ///
@@ -749,7 +749,7 @@ pub unsafe extern "C" fn polyglot_init_c_api(
 unsafe fn polyglot_init_c_api_internal(
     info: libduckdb_sys::duckdb_extension_info,
     access: *const libduckdb_sys::duckdb_extension_access,
-) -> std::result::Result<bool, Box<dyn std::error::Error>> {
+) -> std::result::Result<bool, Box<dyn std::error::Error>> { unsafe {
     let have_api_struct =
         libduckdb_sys::duckdb_rs_extension_api_init(info, access, "v1.5.1")
             .unwrap();
@@ -771,4 +771,4 @@ unsafe fn polyglot_init_c_api_internal(
     extension_entrypoint(connection, shared_conn)?;
 
     Ok(true)
-}
+}}

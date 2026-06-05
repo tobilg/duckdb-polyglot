@@ -1,7 +1,8 @@
 [package]
 name = "polyglot"
 version = "0.4.4"
-edition = "2021"
+edition = "2024"
+rust-version = "1.85"
 
 [lib]
 crate-type = ["cdylib"]
