@@ -9,7 +9,7 @@ EXTENSION_NAME=polyglot
 USE_UNSTABLE_C_API=1
 
 # Target DuckDB version
-TARGET_DUCKDB_VERSION=v1.5.3
+TARGET_DUCKDB_VERSION=v1.5.5
 DUCKDB_TEST_VERSION?=$(patsubst v%,%,$(TARGET_DUCKDB_VERSION))
 
 all: configure debug

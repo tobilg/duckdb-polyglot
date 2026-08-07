@@ -152,7 +152,7 @@ DECODE(x)
 query I
 SELECT polyglot_transpile('a # b', 'postgres');
 ----
-a # b
+XOR(a, b)
 
 # ============== polyglot_transpile: MySQL -> DuckDB ==============
 
