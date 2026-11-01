@@ -160,7 +160,7 @@ XOR(a, b)
 query I
 SELECT polyglot_transpile('SELECT DATE ''2020-01-01'' + INTERVAL -1 DAY', 'mysql');
 ----
-SELECT CAST('2020-01-01' AS DATE) + INTERVAL -1 DAY
+SELECT CAST('2020-01-01' AS DATE) + INTERVAL (-1) DAY
 
 # ============== polyglot_transpile: 3-arg (to_dialect) ==============
 

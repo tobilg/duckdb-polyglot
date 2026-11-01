@@ -1,0 +1,103 @@
+# name: test/sql/neo.test
+# description: V2 callbacks, NULL handling, and native query results
+# group: [polyglot]
+
+require polyglot
+
+# Both transpile signatures remain available.
+query I
+SELECT polyglot_transpile('SELECT 1', 'generic', 'postgresql');
+----
+SELECT 1
+
+query IIIII
+SELECT polyglot_transpile(NULL, 'generic') IS NULL,
+       polyglot_transpile('SELECT 1', 'generic', NULL) IS NULL,
+       polyglot_parse('SELECT 1', NULL) IS NULL,
+       polyglot_optimize(NULL, 'generic') IS NULL,
+       polyglot_validate(NULL, 'generic') IS NULL;
+----
+true	true	true	true	true
+
+# Exercise multiple input batches with interspersed NULLs and nonconstant strings.
+query II
+SELECT count(result), count(*) FILTER (WHERE result = 'SELECT ' || i::VARCHAR)
+FROM (
+    SELECT i, polyglot_transpile(CASE WHEN i % 2 = 0 THEN 'SELECT ' || i::VARCHAR END, 'generic') AS result
+    FROM range(5000) t(i)
+);
+----
+2500	2500
+
+# Struct fields stay aligned with input rows, including NULLs.
+query III
+SELECT count(result), count(*) FILTER (WHERE result.valid), count(*) FILTER (WHERE NOT result.valid)
+FROM (
+    SELECT polyglot_validate(CASE i % 3 WHEN 0 THEN 'SELECT 1' WHEN 1 THEN 'SLECT 1' END, 'generic') AS result
+    FROM range(6000) t(i)
+);
+----
+4000	2000	2000
+
+# Native query output preserves nested types, exact decimals, and NULLs.
+query IIIIII
+SELECT typeof(amount) = 'DECIMAL(18,4)', amount = 123456789.1234,
+       items = [1, NULL, 3], record.name = 'duckdb', record.missing IS NULL,
+       nothing IS NULL
+FROM polyglot_query('SELECT CAST(123456789.1234 AS DECIMAL(18,4)) AS amount, [1, NULL, 3] AS items, STRUCT_PACK(name := ''duckdb'', missing := NULL) AS record, CAST(NULL AS INTEGER) AS nothing', 'duckdb');
+----
+true	true	true	true	true	true
+
+query I
+SELECT count(*) FROM polyglot_query('SELECT 1 AS a WHERE FALSE', 'generic');
+----
+0
+
+query III
+SELECT count(*), sum(i), count(nullable)
+FROM polyglot_query('SELECT i, CASE WHEN i % 2 = 0 THEN i END AS nullable FROM range(5000) t(i)', 'duckdb');
+----
+5000	12497500	2500
+
+# Query execution uses the caller's session, including temporary tables.
+statement ok
+CREATE TEMP TABLE polyglot_neo_session AS SELECT 42 AS value;
+
+query I
+SELECT * FROM polyglot_query('SELECT value FROM polyglot_neo_session', 'generic');
+----
+42
+
+statement ok
+DROP TABLE polyglot_neo_session;
+
+# Independent scans each start from the first row.
+query I
+SELECT count(*) = (SELECT count(*) FROM polyglot_dialects()) * (SELECT count(*) FROM polyglot_dialects())
+FROM polyglot_dialects() a CROSS JOIN polyglot_dialects() b;
+----
+true
+
+# The table callback continues past a full output chunk.
+query I
+SELECT count(*) FROM polyglot_lineage(
+    'SELECT COALESCE(' || array_to_string(list_transform(range(2100), lambda x: 'c' || x::VARCHAR), ', ') || ') AS result FROM t',
+    'generic', 'result'
+);
+----
+2101
+
+query I
+SELECT count(*) FROM polyglot_diff('SELECT a FROM t', 'SELECT a FROM t', 'generic');
+----
+0
+
+statement error
+SELECT * FROM polyglot_lineage(NULL, 'generic', 'a');
+----
+Arguments must not be NULL
+
+statement error
+SELECT * FROM polyglot_diff('SELECT 1', 'SELECT 2', 'not_a_dialect');
+----
+Invalid Input Error

@@ -114,6 +114,8 @@ SELECT polyglot_optimize('SELECT a FROM t WHERE b = 1', 'generic');
 
 Transpiles a SQL query from the given dialect to DuckDB SQL, then executes it and returns the results. The output schema is dynamic, matching the columns of the executed query.
 
+Queries execute in the caller's session, including access to temporary tables, and retain DuckDB's native result types.
+
 ```sql
 SELECT * FROM polyglot_query('SELECT 1 AS a, 2 AS b', 'postgresql');
 ```
@@ -220,7 +222,17 @@ SELECT * FROM polyglot_diff('SELECT a FROM t', 'SELECT b FROM t', 'generic');
 
 ## Testing
 
-Tests are written in SQLLogicTest format in `test/sql/polyglot.test`.
+The extension uses `duckdb-neo` 0.20000.1 and DuckDB's V2 C API, targeting
+DuckDB 2.0.0. Local tests and CI must use that exact DuckDB runtime version.
+If you already configured this checkout with an older runtime, update it before testing:
+
+```shell
+configure/venv/bin/python3 -m pip install duckdb==2.0.0
+make configure
+make debug
+```
+
+Tests are written in SQLLogicTest format in `test/sql/`.
 
 ```shell
 make test_debug
